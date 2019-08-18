@@ -28,7 +28,7 @@
       linker_printf_width_precision_supported="Yes"
       linker_scanf_fmt_level="long"
       linker_section_placement_file="flash_placement.xml"
-      linker_section_placement_macros="FLASH_PH_START=0x0;FLASH_PH_SIZE=0x100000;RAM_PH_START=0x20000000;RAM_PH_SIZE=0x40000;FLASH_START=0x26000;FLASH_SIZE=0xda000;RAM_START=0x200022e0;RAM_SIZE=0x3dd20"
+      linker_section_placement_macros="FLASH_PH_START=0x0;FLASH_PH_SIZE=0x100000;RAM_PH_START=0x20000000;RAM_PH_SIZE=0x40000;FLASH_START=0x26000;FLASH_SIZE=0xda000;RAM_START=0x20003000;RAM_SIZE=0x3d000"
       linker_section_placements_segments="FLASH RX 0x0 0x100000;RAM RWX 0x20000000 0x40000"
       macros="CMSIS_CONFIG_TOOL=../../../../../../external_tools/cmsisconfig/CMSIS_Configuration_Wizard.jar"
       project_directory=""
@@ -131,10 +131,6 @@
       <file file_name="../../../../../../external/utf_converter/utf.c" />
     </folder>
     <folder Name="nRF_BLE_Services">
-      <file file_name="../../../../../../components/ble/ble_services/ble_ancs_c/ancs_app_attr_get.c" />
-      <file file_name="../../../../../../components/ble/ble_services/ble_ancs_c/ancs_attr_parser.c" />
-      <file file_name="../../../../../../components/ble/ble_services/ble_ancs_c/ancs_tx_buffer.c" />
-      <file file_name="../../../../../../components/ble/ble_services/ble_ancs_c/nrf_ble_ancs_c.c" />
       <file file_name="../../../../../../components/ble/ble_services/experimental_gatts_c/nrf_ble_gatts_c.c" />
       <file file_name="../../../../../../components/ble/ble_services/ble_nus/ble_nus.c" />
       <file file_name="../../../../../../components/ble/ble_services/ble_bas/ble_bas.c" />
@@ -144,9 +140,13 @@
       <file file_name="../../../../../../components/softdevice/common/nrf_sdh_ble.c" />
       <file file_name="../../../../../../components/softdevice/common/nrf_sdh_soc.c" />
     </folder>
-    <folder Name="AMS Service">
+    <folder Name="AMS ANCS Service">
       <file file_name="../../../../sdk_mod/ble_ams_c/ams_tx_buffer.c" />
       <file file_name="../../../../sdk_mod/ble_ams_c/nrf_ble_ams_c.c" />
+      <file file_name="../../../../sdk_mod/ble_ancs_c/ancs_app_attr_get.c" />
+      <file file_name="../../../../sdk_mod/ble_ancs_c/ancs_attr_parser.c" />
+      <file file_name="../../../../sdk_mod/ble_ancs_c/ancs_tx_buffer.c" />
+      <file file_name="../../../../sdk_mod/ble_ancs_c/nrf_ble_ancs_c.c" />
     </folder>
     <configuration
       Name="Debug"

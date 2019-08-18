@@ -174,13 +174,13 @@ NRF_BLE_GATT_DEF(m_gatt);                                                     /*
 NRF_BLE_QWR_DEF(m_qwr);                                                       /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                           /**< Advertising module instance. */
 BLE_DB_DISCOVERY_DEF(m_db_disc);                                              /**< DB Discovery module instance. */
-BLE_AMS_C_DEF(m_ams_c);                                                             /**< Apple Media Service Client instance. */
+BLE_AMS_C_DEF(m_ams_c);                                                       /**< Apple Media Service Client instance. */
 
-APP_TIMER_DEF(m_battery_timer_id);                      /**< Battery measurement timer. */
+APP_TIMER_DEF(m_battery_timer_id);                                            /**< Battery measurement timer. */
 
-BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT); /**< BLE NUS service instance. */
+BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                             /**< BLE NUS service instance. */
 
-static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current connection. */
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                      /**< Handle of the current connection. */
 
 static pm_peer_id_t m_whitelist_peers[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];      /**< List of peers currently in the whitelist. */
 static uint32_t m_whitelist_peer_cnt;                                         /**< Number of peers currently in the whitelist. */
@@ -1464,6 +1464,8 @@ static void bsp_event_handler(bsp_event_t event)
                 }
                 break;
 
+/* ANCS_C */
+#if 1
         case BSP_EVENT_KEY_0:
                 ret = nrf_ble_ancs_c_request_attrs(&m_ancs_c, &m_notification_latest);
                 APP_ERROR_CHECK(ret);
@@ -1502,7 +1504,7 @@ static void bsp_event_handler(bsp_event_t event)
                         APP_ERROR_CHECK(ret);
                 }
                 break;
-                #if 0
+#else    /* Apple media Service */
         case BSP_EVENT_KEY_1:
         {
                 NRF_LOG_INFO("KEY 1 is pressed. Register for all EntityTrack Attributes (TrackArtist, TrackAlbum, TrackTitle, TrackDuration");
@@ -1555,7 +1557,7 @@ static void bsp_event_handler(bsp_event_t event)
                 NRF_LOG_INFO("KEY 3 is pressed. Read Entity Attribute value");
                 ble_ams_c_entity_attribute_read(&m_ams_c, 0);
                 break;
-                    #endif
+#endif
         default:
                 break;
         }
@@ -1838,7 +1840,6 @@ static void advertising_init(void)
         init.advdata.uuids_solicited.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
         init.advdata.uuids_solicited.p_uuids  = m_adv_uuids;
 
-
         init.config.ble_adv_whitelist_enabled = true;
         init.config.ble_adv_fast_enabled      = true;
         init.config.ble_adv_fast_interval     = APP_ADV_FAST_INTERVAL;
@@ -1954,6 +1955,7 @@ int main(void)
 
         // Start execution.
         NRF_LOG_INFO("Apple Notification Center Service client example started.");
+        NRF_LOG_INFO("Apple Media Service Client example started.");
         advertising_start(erase_bonds);
 
         timers_start();
