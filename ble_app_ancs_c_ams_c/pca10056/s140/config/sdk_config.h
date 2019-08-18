@@ -235,6 +235,14 @@
 #define BLE_ANCS_C_ENABLED 1
 #endif
 
+//==========================================================
+// <q> BLE_AMS_C_ENABLED  - ble_ancs_c - Apple Media service
+
+
+#ifndef BLE_AMS_C_ENABLED
+#define BLE_AMS_C_ENABLED 1
+#endif
+
 // <q> BLE_ANS_C_ENABLED  - ble_ans_c - Alert Notification Service Client
 
 
@@ -11249,11 +11257,11 @@
 #define BLE_ANCS_C_BLE_OBSERVER_PRIO 2
 #endif
 
-// <o> BLE_ANS_C_BLE_OBSERVER_PRIO
-// <i> Priority with which BLE events are dispatched to the Alert Notification Service Client.
+// <o> BLE_AMS_C_BLE_OBSERVER_PRIO
+// <i> Priority with which BLE events are dispatched to the Apple Media Service.
 
-#ifndef BLE_ANS_C_BLE_OBSERVER_PRIO
-#define BLE_ANS_C_BLE_OBSERVER_PRIO 2
+#ifndef BLE_AMS_C_BLE_OBSERVER_PRIO
+#define BLE_AMS_C_BLE_OBSERVER_PRIO 2
 #endif
 
 // <o> BLE_BAS_BLE_OBSERVER_PRIO

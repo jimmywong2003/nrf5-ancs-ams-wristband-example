@@ -101,6 +101,8 @@
 
 #include "nrf_drv_saadc.h"
 
+#include "nrf_ble_ams_c.h"
+
 #define ATTR_DATA_SIZE                 BLE_ANCS_ATTR_DATA_MAX                 /**< Allocated size for attribute data. */
 
 #define DISPLAY_MESSAGE_BUTTON_ID      1                                      /**< Button used to request notification attributes. */
@@ -153,7 +155,6 @@
 #define SCHED_QUEUE_SIZE               10                                     /**< Maximum number of events in the scheduler queue. */
 #endif
 
-
 #define UART_TX_BUF_SIZE 256 /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE 256 /**< UART RX buffer size. */
 
@@ -173,6 +174,7 @@ NRF_BLE_GATT_DEF(m_gatt);                                                     /*
 NRF_BLE_QWR_DEF(m_qwr);                                                       /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                           /**< Advertising module instance. */
 BLE_DB_DISCOVERY_DEF(m_db_disc);                                              /**< DB Discovery module instance. */
+BLE_AMS_C_DEF(m_ams_c);                                                             /**< Apple Media Service Client instance. */
 
 APP_TIMER_DEF(m_battery_timer_id);                      /**< Battery measurement timer. */
 
@@ -202,6 +204,16 @@ static uint8_t m_attr_date[ATTR_DATA_SIZE];                                   /*
 static uint8_t m_attr_posaction[ATTR_DATA_SIZE];                              /**< Buffer to store attribute data. */
 static uint8_t m_attr_negaction[ATTR_DATA_SIZE];                              /**< Buffer to store attribute data. */
 static uint8_t m_attr_disp_name[ATTR_DATA_SIZE];                              /**< Buffer to store attribute data. */
+
+static uint8_t m_entity_update_artist[BLE_AMS_EU_MAX_DATA_LENGTH];
+static uint8_t m_entity_update_album[BLE_AMS_EU_MAX_DATA_LENGTH];
+static uint8_t m_entity_update_track[BLE_AMS_EU_MAX_DATA_LENGTH];
+static uint8_t m_entity_update_duration[BLE_AMS_EU_MAX_DATA_LENGTH];
+static uint8_t m_entity_attribute[BLE_AMS_EA_MAX_DATA_LENGTH];
+
+/* ENTITY ATTRIBUTE TEST */
+static uint8_t entity_attribute_id = 0;
+/* ENTITY ATTRIBUTE TEST */
 
 static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 
@@ -633,6 +645,49 @@ static void apple_notification_setup(void)
         NRF_LOG_DEBUG("Notifications Enabled.");
 }
 
+/**@brief Function for setting up GATTC notifications from the Notification Provider.
+ *
+ * @details This function is called when a successful connection has been established.
+ */
+static void apple_media_setup(void)
+{
+        ret_code_t ret;
+
+        nrf_delay_ms(100); // Delay because we cannot add a CCCD to close to starting encryption. iOS specific.
+
+        ret = ble_ams_c_remote_command_notif_enable(&m_ams_c);
+        APP_ERROR_CHECK(ret);
+
+        ret = ble_ams_c_entity_update_notif_enable(&m_ams_c);
+        APP_ERROR_CHECK(ret);
+
+        NRF_LOG_INFO("Apple Media-Notifications Enabled.");
+}
+
+/**@brief Function for printing out errors that originated from the Media Source (iOS).
+ *
+ * @param[in] err_code_np Error code received from MS.
+ */
+static void err_code_print(uint16_t err_code_ms)
+{
+        switch (err_code_ms)
+        {
+        case BLE_AMS_MS_INVALID_STATE:
+                NRF_LOG_INFO("Error: Media Source is currently in an invalid state");
+                break;
+
+        case BLE_AMS_MS_INVALID_COMMAND:
+                NRF_LOG_INFO("Error: Command ID was not recognized by the Media Source. ");
+                break;
+
+        case BLE_AMS_MS_ABSENT_ATTRIBUTE:
+                NRF_LOG_INFO("Error: Attribute is absent on the Media Source. ");
+                break;
+
+        default:
+                break;
+        }
+}
 
 /**@brief Function for printing an iOS notification.
  *
@@ -709,7 +764,7 @@ static void app_attr_print(ble_ancs_c_attr_t * p_attr)
  *
  * @param[in] err_code_np Error code received from NP.
  */
-static void err_code_print(uint16_t err_code_np)
+static void err_code_print_AMS(uint16_t err_code_np)
 {
         switch (err_code_np)
         {
@@ -734,6 +789,135 @@ static void err_code_print(uint16_t err_code_np)
         }
 }
 
+/**@brief Function for handling the Apple Notification Service client.
+ *
+ * @details This function is called for all events in the Apple Notification client that
+ *          are passed to the application.
+ *
+ * @param[in] p_evt  Event received from the Apple Notification Service client.
+ */
+static void ams_c_evt_handler(ble_ams_c_evt_t * p_evt)
+{
+        ret_code_t ret = NRF_SUCCESS;
+
+        switch (p_evt->evt_type)
+        {
+        case BLE_AMS_C_EVT_DISCOVERY_COMPLETE:
+                NRF_LOG_INFO("Apple Media Service discovered on the server.");
+                ret = nrf_ble_ams_c_handles_assign(&m_ams_c, p_evt->conn_handle, &p_evt->service);
+                APP_ERROR_CHECK(ret);
+                apple_media_setup();
+                break;
+
+        case BLE_AMS_C_EVT_REMOTE_COMMAND_NOTIFICATION:
+                //NRF_LOG_INFO("BLE_AMS_C_EVT_REMOTE_COMMAND_NOTIFICATION: ListSize: %d.", p_evt->remote_command_data.remote_command_len);
+                break;
+
+        case BLE_AMS_C_EVT_ENTITY_UPDATE_NOTIFICATION:
+                switch(p_evt->entity_update_data.attribute_id)
+                {
+                case BLE_AMS_TRACK_ATTRIBUTE_ID_ARTIST:
+                        NRF_LOG_INFO("Artist\r\n");
+                        if(p_evt->entity_update_data.entity_update_flag == 1)
+                        {
+                                NRF_LOG_INFO("Truncated. Needs to read out manually\r\n");
+                        }
+                        memcpy(m_entity_update_artist, p_evt->entity_update_data.p_entity_update_data, p_evt->entity_update_data.entity_update_data_len);
+                        for(uint8_t i = 0; i < p_evt->entity_update_data.entity_update_data_len; i++)
+                        {
+                                NRF_LOG_INFO("%c", m_entity_update_artist[i]);
+                        }
+                        NRF_LOG_INFO("\r\n");
+                        break;
+
+                case BLE_AMS_TRACK_ATTRIBUTE_ID_ALBUM:
+                        NRF_LOG_INFO("Album\r\n");
+                        if(p_evt->entity_update_data.entity_update_flag == 1)
+                        {
+                                NRF_LOG_INFO("Truncated. Needs to read out manually\r\n");
+                        }
+                        memcpy(m_entity_update_album, p_evt->entity_update_data.p_entity_update_data, p_evt->entity_update_data.entity_update_data_len);
+                        for(uint8_t i = 0; i < p_evt->entity_update_data.entity_update_data_len; i++)
+                        {
+                                NRF_LOG_INFO("%c", m_entity_update_album[i]);
+                        }
+                        NRF_LOG_INFO("\r\n");
+                        break;
+
+                case BLE_AMS_TRACK_ATTRIBUTE_ID_TITLE:
+                        NRF_LOG_INFO("Title\r\n");
+                        if(p_evt->entity_update_data.entity_update_flag == 1)
+                        {
+                                NRF_LOG_INFO("Truncated. Needs to read out manually\r\n");
+                        }
+                        memcpy(m_entity_update_track, p_evt->entity_update_data.p_entity_update_data, p_evt->entity_update_data.entity_update_data_len);
+                        for(uint8_t i = 0; i < p_evt->entity_update_data.entity_update_data_len; i++)
+                        {
+                                NRF_LOG_INFO("%c", m_entity_update_track[i]);
+                        }
+                        NRF_LOG_INFO("\r\n");
+                        break;
+
+                case BLE_AMS_TRACK_ATTRIBUTE_ID_DURATION:
+                {
+                        NRF_LOG_INFO("Duration\r\n");
+                        if(p_evt->entity_update_data.entity_update_flag == 1)
+                        {
+                                NRF_LOG_INFO("Truncated. Needs to read out manually\r\n");
+                        }
+                        memcpy(m_entity_update_duration, p_evt->entity_update_data.p_entity_update_data, p_evt->entity_update_data.entity_update_data_len);
+                        for(uint8_t i = 0; i < p_evt->entity_update_data.entity_update_data_len; i++)
+                        {
+                                NRF_LOG_INFO("%c", m_entity_update_duration[i]);
+                        }
+                        uint8_t durUnits, durDecimals;
+                        double duration_units = ((m_entity_update_duration[0]-0x30)*100) + ((m_entity_update_duration[1]-0x30)*10) + (m_entity_update_duration[2]-0x30);
+                        double duration_decimals = ((m_entity_update_duration[4]-0x30) * 100) + ((m_entity_update_duration[5]-0x30)*10) + ((m_entity_update_duration[6]-0x30));
+                        double duration = duration_units + (duration_decimals / 1000);
+                        durUnits = duration / 60;
+                        durDecimals = (durUnits - (duration / 60)) * 60;
+                        NRF_LOG_INFO("duration: %d:%d\r\n", durUnits, durDecimals);
+                        break;
+                }
+
+                default:
+                        break;
+                }
+                break;
+
+        case BLE_AMS_C_EVT_ENTITY_ATTRIBUTE_READ_RESP:
+        {
+                memcpy(m_entity_attribute, p_evt->entity_attribute_data.p_entity_attribute_data, p_evt->entity_attribute_data.attribute_len);
+                for(uint8_t i = 0; i < p_evt->entity_attribute_data.attribute_len; i++)
+                {
+                        NRF_LOG_INFO("%c", m_entity_attribute[i]);
+                }
+                NRF_LOG_INFO("\r\n");
+                if(p_evt->entity_attribute_data.attribute_len < (NRF_SDH_BLE_GATT_MAX_MTU_SIZE - 3))
+                {
+                        NRF_LOG_INFO("Read Complete!\r\n");
+                }
+                else
+                {
+                        NRF_LOG_INFO("Read not complete. Call sd_ble_gattc_read() with offset: %d\r\n", (p_evt->entity_attribute_data.attribute_offset + p_evt->entity_attribute_data.attribute_len));
+                        ble_ams_c_entity_attribute_read(&m_ams_c, (p_evt->entity_attribute_data.attribute_offset + p_evt->entity_attribute_data.attribute_len));
+                }
+                break;
+        }
+
+        case BLE_AMS_C_EVT_DISCOVERY_FAILED:
+                NRF_LOG_INFO("Apple Media Service not discovered on the server.");
+                break;
+
+        case BLE_AMS_C_EVT_ENTITY_UPDATE_ATTRIBUTE_ERROR:
+                err_code_print(p_evt->err_code_ms);
+                break;
+        default:
+                // No implementation needed.
+                break;
+        }
+}
+
 /**@brief Function for initializing the timer module.
  */
 static void timers_init(void)
@@ -745,8 +929,8 @@ static void timers_init(void)
 
         // Create battery timer.
         ret = app_timer_create(&m_battery_timer_id,
-                                    APP_TIMER_MODE_REPEATED,
-                                    battery_level_meas_timeout_handler);
+                               APP_TIMER_MODE_REPEATED,
+                               battery_level_meas_timeout_handler);
         APP_ERROR_CHECK(ret);
 }
 
@@ -982,6 +1166,15 @@ static void apple_notification_error_handler(uint32_t nrf_error)
         APP_ERROR_HANDLER(nrf_error);
 }
 
+/**@brief Function for handling the Apple Notification Service client errors.
+ *
+ * @param[in] nrf_error  Error code containing information about what went wrong.
+ */
+static void apple_media_error_handler(uint32_t nrf_error)
+{
+        APP_ERROR_HANDLER(nrf_error);
+}
+
 
 /**@brief Function for handling a Connection Parameters error.
  *
@@ -1027,6 +1220,7 @@ static void conn_params_init(void)
 static void db_disc_handler(ble_db_discovery_evt_t * p_evt)
 {
         ble_ancs_c_on_db_disc_evt(&m_ancs_c, p_evt);
+        ble_ams_c_on_db_disc_evt(&m_ams_c, p_evt);
         nrf_ble_gatts_c_on_db_disc_evt(&m_gatts_c, p_evt);
 }
 
@@ -1308,7 +1502,60 @@ static void bsp_event_handler(bsp_event_t event)
                         APP_ERROR_CHECK(ret);
                 }
                 break;
+                #if 0
+        case BSP_EVENT_KEY_1:
+        {
+                NRF_LOG_INFO("KEY 1 is pressed. Register for all EntityTrack Attributes (TrackArtist, TrackAlbum, TrackTitle, TrackDuration");
+                uint8_t attribute_number = 4;
+                uint8_t attribute_list[] = {BLE_AMS_TRACK_ATTRIBUTE_ID_ARTIST,
+                                            BLE_AMS_TRACK_ATTRIBUTE_ID_ALBUM,
+                                            BLE_AMS_TRACK_ATTRIBUTE_ID_TITLE,
+                                            BLE_AMS_TRACK_ATTRIBUTE_ID_DURATION};
+                ble_ams_c_entity_update_write(&m_ams_c, BLE_AMS_ENTITY_ID_TRACK, attribute_number, attribute_list);
+                break;
+        }
 
+        case BSP_EVENT_KEY_2:
+        {
+                entity_attribute_id++;
+                if(entity_attribute_id > 3)
+                {
+                        entity_attribute_id = 0;
+                }
+
+                switch(entity_attribute_id)
+                {
+                case 0:
+                        NRF_LOG_INFO("KEY 2 is pressed. Send EntityAttribute request for Attribute TrackArtist of EntityTrack");
+                        ble_ams_c_entity_attribute_write(&m_ams_c, BLE_AMS_ENTITY_ID_TRACK, BLE_AMS_TRACK_ATTRIBUTE_ID_ARTIST);
+                        break;
+
+                case 1:
+                        NRF_LOG_INFO("KEY 2 is pressed. Send EntityAttribute request for Attribute TrackAlbum of EntityTrack");
+                        ble_ams_c_entity_attribute_write(&m_ams_c, BLE_AMS_ENTITY_ID_TRACK, BLE_AMS_TRACK_ATTRIBUTE_ID_ALBUM);
+                        break;
+
+                case 2:
+                        NRF_LOG_INFO("KEY 2 is pressed. Send EntityAttribute request for Attribute TrackTitle of EntityTrack");
+                        ble_ams_c_entity_attribute_write(&m_ams_c, BLE_AMS_ENTITY_ID_TRACK, BLE_AMS_TRACK_ATTRIBUTE_ID_TITLE);
+                        break;
+
+                case 3:
+                        NRF_LOG_INFO("KEY 2 is pressed. Send EntityAttribute request for Attribute TrackDuration of EntityTrack");
+                        ble_ams_c_entity_attribute_write(&m_ams_c, BLE_AMS_ENTITY_ID_TRACK, BLE_AMS_TRACK_ATTRIBUTE_ID_DURATION);
+                        break;
+
+                default:
+                        break;
+                }
+                break;
+        }
+
+        case BSP_EVENT_KEY_3:
+                NRF_LOG_INFO("KEY 3 is pressed. Read Entity Attribute value");
+                ble_ams_c_entity_attribute_read(&m_ams_c, 0);
+                break;
+                    #endif
         default:
                 break;
         }
@@ -1403,12 +1650,36 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 /**@snippet [Handling the data received over BLE] */
 
 
+/**@brief Function for initializing the Battery Service.
+ */
+static void bas_init(void)
+{
+        ret_code_t err_code;
+        ble_bas_init_t bas_init_obj;
+
+        memset(&bas_init_obj, 0, sizeof(bas_init_obj));
+
+        bas_init_obj.evt_handler          = on_bas_evt;
+        bas_init_obj.support_notification = true;
+        bas_init_obj.p_report_ref         = NULL;
+        bas_init_obj.initial_batt_level   = 100;
+
+        bas_init_obj.bl_rd_sec        = SEC_OPEN;
+        bas_init_obj.bl_cccd_wr_sec   = SEC_OPEN;
+        bas_init_obj.bl_report_rd_sec = SEC_OPEN;
+
+        err_code = ble_bas_init(&m_bas, &bas_init_obj);
+        APP_ERROR_CHECK(err_code);
+}
+
+
 /**@brief Function for initializing services that will be used by the application.
  */
 static void services_init(void)
 {
         ret_code_t ret;
         ble_ancs_c_init_t ancs_c_init;
+        ble_ams_c_init_t ams_c_init;
         ble_nus_init_t nus_init;
         nrf_ble_gatts_c_init_t gatts_c_init;
         nrf_ble_qwr_init_t qwr_init = {0};
@@ -1490,6 +1761,15 @@ static void services_init(void)
         ret = ble_ancs_c_init(&m_ancs_c, &ancs_c_init);
         APP_ERROR_CHECK(ret);
 
+        // Init the Apple Media Service client module.
+        memset(&ams_c_init, 0, sizeof(ams_c_init));
+
+        ams_c_init.evt_handler   = ams_c_evt_handler;
+        ams_c_init.error_handler = apple_media_error_handler;
+
+        ret = ble_ams_c_init(&m_ams_c, &ams_c_init);
+        APP_ERROR_CHECK(ret);
+
         // Initialize NUS.
         memset(&nus_init, 0, sizeof(nus_init));
 
@@ -1498,9 +1778,41 @@ static void services_init(void)
         ret = ble_nus_init(&m_nus, &nus_init);
 
         APP_ERROR_CHECK(ret);
+
+        bas_init();
 }
 
 
+/**@brief Function for handling the Battery Service events.
+ *
+ * @details This function will be called for all Battery Service events which are passed to the
+ |          application.
+ *
+ * @param[in] p_bas  Battery Service structure.
+ * @param[in] p_evt  Event received from the Battery Service.
+ */
+static void on_bas_evt(ble_bas_t * p_bas, ble_bas_evt_t * p_evt)
+{
+        ret_code_t err_code;
+
+        switch (p_evt->evt_type)
+        {
+        case BLE_BAS_EVT_NOTIFICATION_ENABLED:
+                // Start battery timer
+                // err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+                // APP_ERROR_CHECK(err_code);
+                break; // BLE_BAS_EVT_NOTIFICATION_ENABLED
+
+        case BLE_BAS_EVT_NOTIFICATION_DISABLED:
+                // err_code = app_timer_stop(m_battery_timer_id);
+                // APP_ERROR_CHECK(err_code);
+                break; // BLE_BAS_EVT_NOTIFICATION_DISABLED
+
+        default:
+                // No implementation needed.
+                break;
+        }
+}
 /**@brief Function for initializing the advertising functionality.
  */
 static void advertising_init(void)
