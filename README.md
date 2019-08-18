@@ -5,6 +5,7 @@ Example of the ANCS + AMS on nRF52 Series
 * Add the battery service with SAADC for every 120 seconds
 * Add the NUS service
 * Enable the DCDC power mode
+* Add the Apple Media Service
 
 
 ## Requirement
