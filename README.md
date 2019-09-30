@@ -14,3 +14,7 @@ Example of the ANCS + AMS on nRF52 Series
 * SDK 15.3
 * Softdevice S140v6.1.1
 * Segger Embedded Studio
+
+## Disclaimer
+The examples are not extensively tested and only meant as simple explanations and for inspiration.
+NO WARRANTY of ANY KIND is provided.
