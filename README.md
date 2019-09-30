@@ -16,5 +16,5 @@ Example of the ANCS + AMS on nRF52 Series
 * Segger Embedded Studio
 
 ## Disclaimer
-The examples are not extensively tested and only meant as simple explanations and for inspiration.
-NO WARRANTY of ANY KIND is provided.
+* The examples are not extensively tested and only meant as simple explanations and for inspiration.
+* NO WARRANTY of ANY KIND is provided.
